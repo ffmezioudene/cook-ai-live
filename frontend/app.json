@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Scan your fridge to find recipes",
+        "NSPhotoLibraryUsageDescription": "Choose photos from your gallery"
+      }
     },
     "android": {
       "adaptiveIcon": {
