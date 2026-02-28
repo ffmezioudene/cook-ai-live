@@ -24,30 +24,25 @@ const MOCK_DETECTED_INGREDIENTS: ScannedIngredient[] = [
 
 export default function IngredientsScreen() {
   const router = useRouter();
-  const { setScannedIngredients, confirmIngredient, removeIngredient, addIngredient } = useRecipeStore();
+  const { setScannedIngredients, confirmIngredient, removeIngredient, addIngredient, scannedIngredients: storeIngredients } = useRecipeStore();
   const [ingredients, setIngredients] = useState<ScannedIngredient[]>([]);
   const [newIngredient, setNewIngredient] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // In a real implementation, we'd receive the captured images
-    // For now, simulate AI processing with backend call
-    const processImages = async () => {
-      try {
-        // TODO: In camera.tsx, we'll pass the actual images here
-        // For now, use mock data as fallback
+    // Check if we have ingredients from the scan
+    if (storeIngredients && storeIngredients.length > 0) {
+      setIngredients(storeIngredients);
+      setLoading(false);
+    } else {
+      // Fallback to mock data if no scanned ingredients
+      const timer = setTimeout(() => {
         setIngredients(MOCK_DETECTED_INGREDIENTS);
         setLoading(false);
-      } catch (error) {
-        console.error('Error processing images:', error);
-        setIngredients(MOCK_DETECTED_INGREDIENTS);
-        setLoading(false);
-      }
-    };
-
-    const timer = setTimeout(processImages, 2000);
-    return () => clearTimeout(timer);
-  }, []);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [storeIngredients]);
 
   const handleConfirm = (name: string) => {
     setIngredients(prev => prev.map(ing => 
