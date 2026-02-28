@@ -30,12 +30,22 @@ export default function IngredientsScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate AI processing
-    const timer = setTimeout(() => {
-      setIngredients(MOCK_DETECTED_INGREDIENTS);
-      setLoading(false);
-    }, 2000);
+    // In a real implementation, we'd receive the captured images
+    // For now, simulate AI processing with backend call
+    const processImages = async () => {
+      try {
+        // TODO: In camera.tsx, we'll pass the actual images here
+        // For now, use mock data as fallback
+        setIngredients(MOCK_DETECTED_INGREDIENTS);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error processing images:', error);
+        setIngredients(MOCK_DETECTED_INGREDIENTS);
+        setLoading(false);
+      }
+    };
 
+    const timer = setTimeout(processImages, 2000);
     return () => clearTimeout(timer);
   }, []);
 
