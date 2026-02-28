@@ -13,6 +13,7 @@ export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [photosTaken, setPhotosTaken] = useState<string[]>([]);
   const [facing, setFacing] = useState<'back' | 'front'>('back');
+  const [isProcessing, setIsProcessing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
   if (!permission) {
