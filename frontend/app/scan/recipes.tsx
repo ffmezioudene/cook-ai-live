@@ -95,20 +95,68 @@ export default function RecipesScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate recipe fetching
-    const timer = setTimeout(() => {
-      // Filter by selected cuisines if any
-      const filteredRecipes = selectedCuisines.length > 0
-        ? MOCK_RECIPES.filter(r => selectedCuisines.includes(r.cuisine.toLowerCase()))
-        : MOCK_RECIPES;
-      
-      setLocalRecipes(filteredRecipes.length > 0 ? filteredRecipes : MOCK_RECIPES);
-      setRecipes(MOCK_RECIPES);
-      setLoading(false);
-    }, 1500);
+    // Fetch recipes from backend
+    const fetchRecipes = async () => {
+      try {
+        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        
+        const ingredientNames = scannedIngredients.map(ing => ing.name);
+        const payload = {
+          ingredients: ingredientNames,
+          cuisines: selectedCuisines,
+          max_results: 10
+        };
+        
+        const response = await fetch(`${BACKEND_URL}/api/recipes`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch recipes');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.recipes) {
+          // Transform backend recipes to match our Recipe model
+          const transformedRecipes = data.recipes.map((r: any) => ({
+            id: r.id,
+            title: r.title,
+            image: r.image || undefined,
+            cuisine: r.cuisine,
+            cookingTime: r.cooking_time,
+            difficulty: r.difficulty as 'easy' | 'medium' | 'hard',
+            servings: r.servings,
+            ingredients: r.ingredients,
+            steps: r.steps,
+            missingIngredients: r.missing_ingredients || []
+          }));
+          
+          setLocalRecipes(transformedRecipes);
+          setRecipes(transformedRecipes);
+        } else {
+          // Fallback to mock data if API fails
+          setLocalRecipes(MOCK_RECIPES);
+          setRecipes(MOCK_RECIPES);
+        }
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Failed to fetch recipes:', error);
+        // Fallback to mock data on error
+        setLocalRecipes(MOCK_RECIPES);
+        setRecipes(MOCK_RECIPES);
+        setLoading(false);
+      }
+    };
 
+    const timer = setTimeout(fetchRecipes, 1500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [scannedIngredients, selectedCuisines]);
 
   const handleRecipePress = (recipeId: string) => {
     router.push(`/recipe/${recipeId}`);
