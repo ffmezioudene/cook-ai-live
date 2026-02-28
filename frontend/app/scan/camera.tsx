@@ -41,21 +41,68 @@ export default function CameraScreen() {
   }
 
   const handleTakePhoto = async () => {
-    if (!cameraRef.current) return;
+    if (!cameraRef.current || isProcessing) return;
 
     try {
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.8,
+        quality: 0.7,
         base64: true,
       });
 
       if (photo && photo.base64) {
-        const newPhotos = [...photosTaken, `data:image/jpeg;base64,${photo.base64}`];
+        const newPhotos = [...photosTaken, photo.base64];
         setPhotosTaken(newPhotos);
 
         if (newPhotos.length >= 2) {
-          // Navigate to processing/ingredients screen
-          router.push('/scan/ingredients');
+          // Both photos captured, send to backend for AI analysis
+          setIsProcessing(true);
+          
+          try {
+            const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+            
+            // Send the first photo to backend for analysis
+            // (You can also merge both photos or send them separately)
+            const response = await fetch(`${BACKEND_URL}/api/scan`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                image: newPhotos[0]  // Send first photo
+              })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success && data.ingredients) {
+              // Store ingredients in global state
+              const { useRecipeStore } = await import('@/store/useRecipeStore');
+              const ingredients = data.ingredients.map((ing: any) => ({
+                name: ing.name,
+                confidence: ing.confidence,
+                confirmed: false
+              }));
+              
+              useRecipeStore.getState().setScannedIngredients(ingredients);
+            }
+            
+            // Navigate to ingredients confirmation screen
+            router.push('/scan/ingredients');
+          } catch (error) {
+            console.error('Error sending to backend:', error);
+            Alert.alert(
+              'Error',
+              'Failed to analyze images. Using offline mode.',
+              [
+                {
+                  text: 'OK',
+                  onPress: () => router.push('/scan/ingredients')
+                }
+              ]
+            );
+          } finally {
+            setIsProcessing(false);
+          }
         } else {
           Alert.alert(
             'Great!',
@@ -67,6 +114,7 @@ export default function CameraScreen() {
     } catch (error) {
       console.error('Error taking photo:', error);
       Alert.alert('Error', 'Failed to take photo. Please try again.');
+      setIsProcessing(false);
     }
   };
 
