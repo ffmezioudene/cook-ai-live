@@ -191,11 +191,11 @@ export default function RecipeDetailScreen() {
             <Image
               source={{ uri: recipe.image }}
               style={styles.heroImage}
-              contentFit=\"cover\"
+              contentFit="cover"
             />
           ) : (
             <View style={[styles.heroImage, styles.placeholderImage]}>
-              <Ionicons name=\"restaurant\" size={80} color={colors.textMuted} />
+              <Ionicons name="restaurant" size={80} color={colors.textMuted} />
             </View>
           )}
           
@@ -207,7 +207,7 @@ export default function RecipeDetailScreen() {
           {/* Header Buttons */}
           <SafeAreaView style={styles.headerButtons}>
             <Pressable onPress={() => router.back()} style={styles.headerButton}>
-              <Ionicons name=\"arrow-back\" size={24} color={colors.text} />
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
             </Pressable>
             <Pressable onPress={handleToggleSave} style={styles.headerButton}>
               <Ionicons 
