@@ -148,9 +148,9 @@ export default function RecipeDetailScreen() {
     return (
       <View style={styles.container}>
         <SafeAreaView style={styles.errorContainer}>
-          <Ionicons name=\"alert-circle-outline\" size={80} color={colors.error} />
+          <Ionicons name="alert-circle-outline" size={80} color={colors.error} />
           <Text style={styles.errorTitle}>Recipe Not Found</Text>
-          <Button title=\"Go Back\" onPress={() => router.back()} />
+          <Button title="Go Back" onPress={() => router.back()} />
         </SafeAreaView>
       </View>
     );
