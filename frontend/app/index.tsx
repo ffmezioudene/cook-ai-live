@@ -1,16 +1,29 @@
-import { Text, View, StyleSheet, Image } from "react-native";
-
-const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { useEffect } from 'react';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
+import { colors } from '@/constants/theme';
+import { useOnboardingStore } from '@/store/useOnboardingStore';
 
 export default function Index() {
-  console.log(EXPO_PUBLIC_BACKEND_URL, "EXPO_PUBLIC_BACKEND_URL");
+  const router = useRouter();
+  const hasCompletedOnboarding = useOnboardingStore(state => state.hasCompletedOnboarding);
+
+  useEffect(() => {
+    // Simulate a brief loading screen
+    const timer = setTimeout(() => {
+      if (hasCompletedOnboarding) {
+        router.replace('/(tabs)/home');
+      } else {
+        router.replace('/(onboarding)/hero');
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [hasCompletedOnboarding]);
 
   return (
     <View style={styles.container}>
-      <Image
-        source={require("../assets/images/app-image.png")}
-        style={styles.image}
-      />
+      <ActivityIndicator size="large" color={colors.primary} />
     </View>
   );
 }
@@ -18,13 +31,8 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0c0c0c",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  image: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "contain",
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
