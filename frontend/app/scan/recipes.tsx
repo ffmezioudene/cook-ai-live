@@ -93,13 +93,39 @@ export default function RecipesScreen() {
   const selectedCuisines = useOnboardingStore(state => state.selectedCuisines);
   const [recipes, setLocalRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
+  // Prefer EXPO_PUBLIC_API_URL for real devices; fallback points to LAN API base.
+  const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://<LAN_IP>:8001/api').replace(/\/+$/, '');
+
+  const parseJsonResponse = async (response: Response, context: string) => {
+    const text = await response.text();
+    const contentType = response.headers.get('content-type') ?? '';
+
+    if (!contentType.includes('application/json')) {
+      console.error(`[${context}] Non-JSON response`, {
+        status: response.status,
+        contentType,
+        body: text,
+      });
+      return { ok: false, data: null as null | any, raw: text };
+    }
+
+    try {
+      return { ok: true, data: JSON.parse(text), raw: text };
+    } catch (error) {
+      console.error(`[${context}] JSON parse failed`, {
+        status: response.status,
+        contentType,
+        body: text,
+        error,
+      });
+      return { ok: false, data: null as null | any, raw: text };
+    }
+  };
 
   useEffect(() => {
     // Fetch recipes from backend
     const fetchRecipes = async () => {
       try {
-        const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-        
         const ingredientNames = scannedIngredients.map(ing => ing.name);
         const payload = {
           ingredients: ingredientNames,
@@ -107,19 +133,24 @@ export default function RecipesScreen() {
           max_results: 10
         };
         
-        const response = await fetch(`${BACKEND_URL}/api/recipes`, {
+        const response = await fetch(`${API_BASE_URL}/recipes`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            Accept: 'application/json',
           },
           body: JSON.stringify(payload)
         });
         
+        const parsed = await parseJsonResponse(response, 'recipes');
+        if (!parsed.ok) {
+          throw new Error('Non-JSON response from recipes API');
+        }
         if (!response.ok) {
           throw new Error('Failed to fetch recipes');
         }
         
-        const data = await response.json();
+        const data = parsed.data;
         
         if (data.success && data.recipes) {
           // Transform backend recipes to match our Recipe model

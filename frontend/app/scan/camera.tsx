@@ -15,6 +15,34 @@ export default function CameraScreen() {
   const [facing, setFacing] = useState<'back' | 'front'>('back');
   const [isProcessing, setIsProcessing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
+  // Prefer EXPO_PUBLIC_API_URL for real devices; fallback points to LAN API base.
+  const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://<LAN_IP>:8001/api').replace(/\/+$/, '');
+
+  const parseJsonResponse = async (response: Response, context: string) => {
+    const text = await response.text();
+    const contentType = response.headers.get('content-type') ?? '';
+
+    if (!contentType.includes('application/json')) {
+      console.error(`[${context}] Non-JSON response`, {
+        status: response.status,
+        contentType,
+        body: text,
+      });
+      return { ok: false, data: null as null | any, raw: text };
+    }
+
+    try {
+      return { ok: true, data: JSON.parse(text), raw: text };
+    } catch (error) {
+      console.error(`[${context}] JSON parse failed`, {
+        status: response.status,
+        contentType,
+        body: text,
+        error,
+      });
+      return { ok: false, data: null as null | any, raw: text };
+    }
+  };
 
   if (!permission) {
     return <View style={styles.container} />;
@@ -58,21 +86,34 @@ export default function CameraScreen() {
           setIsProcessing(true);
           
           try {
-            const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-            
             // Send the first photo to backend for analysis
             // (You can also merge both photos or send them separately)
-            const response = await fetch(`${BACKEND_URL}/api/scan`, {
+            const response = await fetch(`${API_BASE_URL}/scan`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
+                Accept: 'application/json',
               },
               body: JSON.stringify({
                 image: newPhotos[0]  // Send first photo
               })
             });
             
-            const data = await response.json();
+            const parsed = await parseJsonResponse(response, 'scan');
+            if (!parsed.ok) {
+              Alert.alert(
+                'Error',
+                'The server returned an unexpected response. Using offline mode.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => router.push('/scan/ingredients')
+                  }
+                ]
+              );
+              return;
+            }
+            const data = parsed.data;
             
             if (data.success && data.ingredients) {
               // Store ingredients in global state
