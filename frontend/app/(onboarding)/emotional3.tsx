@@ -1,14 +1,31 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as StoreReview from 'expo-store-review';
 import Button from '@/components/ui/Button';
 import { colors, typography, spacing, borderRadius } from '@/constants/theme';
 
 export default function Emotional3Screen() {
   const router = useRouter();
+
+  const handleContinue = async () => {
+    // Request app review before navigating to the ready screen
+    try {
+      if (Platform.OS !== 'web') {
+        const isAvailable = await StoreReview.isAvailableAsync();
+        if (isAvailable) {
+          await StoreReview.requestReview();
+        }
+      }
+    } catch (error) {
+      // Silently fail - review prompt is not critical
+      console.log('Store review not available:', error);
+    }
+    router.push('/(onboarding)/ready');
+  };
 
   return (
     <View style={styles.container}>
@@ -38,7 +55,7 @@ export default function Emotional3Screen() {
         >
           <Button
             title="Almost There"
-            onPress={() => router.push('/(onboarding)/ready')}
+            onPress={handleContinue}
             size="lg"
           />
         </Animated.View>
