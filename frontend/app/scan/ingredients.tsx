@@ -6,25 +6,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '@/components/ui/Button';
 import { useRecipeStore, ScannedIngredient } from '@/store/useRecipeStore';
+import { useOnboardingStore } from '@/store/useOnboardingStore';
+import { setFirstScanTimestampIfMissing } from '@/lib/freeAccess';
 import { colors, typography, spacing, borderRadius } from '@/constants/theme';
-
-// MOCKED AI Detection
-const MOCK_DETECTED_INGREDIENTS: ScannedIngredient[] = [
-  { name: 'Chicken Breast', confidence: 0.95, confirmed: false },
-  { name: 'Tomatoes', confidence: 0.92, confirmed: false },
-  { name: 'Onions', confidence: 0.88, confirmed: false },
-  { name: 'Garlic', confidence: 0.85, confirmed: false },
-  { name: 'Bell Peppers', confidence: 0.90, confirmed: false },
-  { name: 'Olive Oil', confidence: 0.78, confirmed: false },
-  { name: 'Rice', confidence: 0.82, confirmed: false },
-  { name: 'Eggs', confidence: 0.94, confirmed: false },
-  { name: 'Milk', confidence: 0.87, confirmed: false },
-  { name: 'Cheese', confidence: 0.91, confirmed: false },
-];
 
 export default function IngredientsScreen() {
   const router = useRouter();
   const { setScannedIngredients, confirmIngredient, removeIngredient, addIngredient, scannedIngredients: storeIngredients } = useRecipeStore();
+  const selectedCuisines = useOnboardingStore(state => state.selectedCuisines);
   const [ingredients, setIngredients] = useState<ScannedIngredient[]>([]);
   const [newIngredient, setNewIngredient] = useState('');
   const [loading, setLoading] = useState(true);
@@ -35,12 +24,9 @@ export default function IngredientsScreen() {
       setIngredients(storeIngredients);
       setLoading(false);
     } else {
-      // Fallback to mock data if no scanned ingredients
-      const timer = setTimeout(() => {
-        setIngredients(MOCK_DETECTED_INGREDIENTS);
-        setLoading(false);
-      }, 2000);
-      return () => clearTimeout(timer);
+      // No scanned ingredients available
+      setIngredients([]);
+      setLoading(false);
     }
   }, [storeIngredients]);
 
@@ -75,7 +61,7 @@ export default function IngredientsScreen() {
     }
   };
 
-  const handleFindRecipes = () => {
+  const handleFindRecipes = async () => {
     const confirmedIngredients = ingredients.filter(ing => ing.confirmed);
     
     if (confirmedIngredients.length === 0) {
@@ -84,6 +70,7 @@ export default function IngredientsScreen() {
     }
 
     setScannedIngredients(confirmedIngredients);
+    await setFirstScanTimestampIfMissing();
     router.push('/scan/recipes');
   };
 
@@ -104,6 +91,28 @@ export default function IngredientsScreen() {
   }
 
   const confirmedCount = ingredients.filter(ing => ing.confirmed).length;
+
+  if (!loading && ingredients.length === 0) {
+    return (
+      <View style={styles.container}>
+        <SafeAreaView style={styles.loadingContainer}>
+          <Animated.View entering={FadeInDown.duration(600)}>
+            <Ionicons name="alert-circle-outline" size={80} color={colors.textMuted} />
+          </Animated.View>
+          <Animated.View entering={FadeInDown.delay(200).duration(600)}>
+            <Text style={styles.loadingTitle}>No ingredients detected</Text>
+            <Text style={styles.loadingText}>Please scan again for accurate results.</Text>
+          </Animated.View>
+          <Button
+            title="Scan Again"
+            onPress={() => router.replace('/scan/camera')}
+            size="lg"
+            style={{ marginTop: spacing.lg }}
+          />
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -200,6 +209,7 @@ export default function IngredientsScreen() {
               </Pressable>
             </View>
           </Animated.View>
+
         </ScrollView>
 
         {/* Footer */}

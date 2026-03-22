@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import Button from '@/components/ui/Button';
+import { getApiBaseUrl } from '@/lib/apiUrl';
 import { colors, typography, spacing, borderRadius } from '@/constants/theme';
 
 export default function CameraScreen() {
@@ -15,8 +16,7 @@ export default function CameraScreen() {
   const [facing, setFacing] = useState<'back' | 'front'>('back');
   const [isProcessing, setIsProcessing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
-  // Prefer EXPO_PUBLIC_API_URL for real devices; fallback points to LAN API base.
-  const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://<LAN_IP>:8001/api').replace(/\/+$/, '');
+  const API_BASE_URL = getApiBaseUrl();
 
   const parseJsonResponse = async (response: Response, context: string) => {
     const text = await response.text();
@@ -73,7 +73,7 @@ export default function CameraScreen() {
 
     try {
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.7,
+        quality: 0.5,
         base64: true,
       });
 
@@ -86,8 +86,9 @@ export default function CameraScreen() {
           setIsProcessing(true);
           
           try {
-            // Send the first photo to backend for analysis
-            // (You can also merge both photos or send them separately)
+            // Send the latest photo to backend for analysis (closer detail tends to work better)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 45_000);
             const response = await fetch(`${API_BASE_URL}/scan`, {
               method: 'POST',
               headers: {
@@ -95,9 +96,11 @@ export default function CameraScreen() {
                 Accept: 'application/json',
               },
               body: JSON.stringify({
-                image: newPhotos[0]  // Send first photo
-              })
+                image: newPhotos[newPhotos.length - 1]
+              }),
+              signal: controller.signal,
             });
+            clearTimeout(timeoutId);
             
             const parsed = await parseJsonResponse(response, 'scan');
             if (!parsed.ok) {
@@ -129,14 +132,18 @@ export default function CameraScreen() {
             
             // Navigate to ingredients confirmation screen
             router.push('/scan/ingredients');
-          } catch (error) {
+          } catch (error: any) {
             console.error('Error sending to backend:', error);
+            const isTimeout = error?.name === 'AbortError';
             Alert.alert(
-              'Error',
-              'Failed to analyze images. Using offline mode.',
+              isTimeout ? 'Analysis timed out' : 'Error',
+              isTimeout
+                ? 'The scan took too long. Your phone and computer must be on the same Wi‑Fi. Try again or use offline mode.'
+                : 'Failed to analyze images. Using offline mode.',
               [
+                { text: 'Try Again', onPress: () => { setPhotosTaken([]); setIsProcessing(false); } },
                 {
-                  text: 'OK',
+                  text: 'Offline Mode',
                   onPress: () => router.push('/scan/ingredients')
                 }
               ]
@@ -158,6 +165,24 @@ export default function CameraScreen() {
       setIsProcessing(false);
     }
   };
+
+  if (isProcessing) {
+    return (
+      <View style={styles.container}>
+        <SafeAreaView style={styles.processingContainer}>
+          <Animated.View entering={FadeInDown.duration(600)}>
+            <Ionicons name="sparkles" size={80} color={colors.primary} />
+          </Animated.View>
+          <Animated.View entering={FadeInDown.delay(200).duration(600)}>
+            <Text style={styles.processingTitle}>Analyzing your fridge…</Text>
+            <Text style={styles.processingText}>
+              AI is detecting ingredients. This usually takes a few seconds.
+            </Text>
+          </Animated.View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -251,6 +276,23 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: typography.lineHeight.relaxed * typography.base,
+  },
+  processingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xl,
+  },
+  processingTitle: {
+    fontSize: typography['3xl'],
+    fontWeight: typography.bold,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  processingText: {
+    fontSize: typography.base,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   camera: {
     flex: 1,

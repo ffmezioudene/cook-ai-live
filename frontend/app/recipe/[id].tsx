@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Linking } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Button from '@/components/ui/Button';
+import { getApiBaseUrl } from '@/lib/apiUrl';
 import { useRecipeStore, Recipe } from '@/store/useRecipeStore';
 import { colors, typography, spacing, borderRadius, shadows } from '@/constants/theme';
 
@@ -61,20 +62,114 @@ const MOCK_RECIPES: Record<string, Recipe> = {
 
 export default function RecipeDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { saveRecipe, unsaveRecipe, isRecipeSaved } = useRecipeStore();
+  const params = useLocalSearchParams<{ id: string }>();
+  const recipeId = params.id == null ? null : Array.isArray(params.id) ? params.id[0] : params.id;
+  const { recipes, savedRecipes, saveRecipe, unsaveRecipe, isRecipeSaved } = useRecipeStore();
   const [showAllSteps, setShowAllSteps] = useState(false);
-  
-  const recipe = id ? MOCK_RECIPES[id] : null;
+  const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const API_BASE_URL = getApiBaseUrl();
+
+  // Resolve recipe: store (API results) first, then saved, then mock fallback
+  const fallbackRecipe = useMemo(() => {
+    if (!recipeId) return null;
+    const savedPayload = savedRecipes.find((r) => r.id === recipeId)?.payload;
+    return (
+      recipes.find((r) => r.id === recipeId) ??
+      savedPayload ??
+      MOCK_RECIPES[recipeId] ??
+      null
+    );
+  }, [recipeId, recipes, savedRecipes]);
+
+  const parseJsonResponse = async (response: Response) => {
+    const text = await response.text();
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!contentType.includes('application/json')) {
+      return { ok: false, data: null as null | any, raw: text };
+    }
+    try {
+      return { ok: true, data: JSON.parse(text), raw: text };
+    } catch {
+      return { ok: false, data: null as null | any, raw: text };
+    }
+  };
+
+  useEffect(() => {
+    const fetchRecipe = async () => {
+      if (!recipeId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch(`${API_BASE_URL}/recipe/${recipeId}`, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+          },
+        });
+
+        const parsed = await parseJsonResponse(response);
+        if (!parsed.ok || !response.ok) {
+          throw new Error('Failed to fetch recipe detail');
+        }
+
+        const r = parsed.data;
+        const mapped: Recipe = {
+          id: r.id,
+          title: r.title,
+          image: r.image || undefined,
+          cuisine: r.cuisine,
+          cuisines: r.cuisines || [],
+          cookingTime: r.cooking_time,
+          difficulty: r.difficulty as 'easy' | 'medium' | 'hard',
+          servings: r.servings,
+          ingredients: r.ingredients,
+          steps: r.steps,
+          missingIngredients: r.missing_ingredients || [],
+          calories: r.calories ?? null,
+          usedIngredientsCount: r.used_ingredients_count ?? 0,
+          missingIngredientsCount: r.missing_ingredients_count ?? 0,
+          matchScore: r.match_score ?? 0,
+          dishTypes: r.dish_types || [],
+          mealType: r.meal_type ?? null,
+          summary: r.summary ?? null,
+        };
+        setRecipe(mapped);
+      } catch (err) {
+        setError('Unable to load recipe details.');
+        setRecipe(fallbackRecipe ?? null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRecipe();
+  }, [API_BASE_URL, recipeId, fallbackRecipe]);
   const saved = recipe ? isRecipeSaved(recipe.id) : false;
 
-  if (!recipe) {
+  if (!recipe && !loading) {
     return (
       <View style={styles.container}>
         <SafeAreaView style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={80} color={colors.error} />
           <Text style={styles.errorTitle}>Recipe Not Found</Text>
           <Button title="Go Back" onPress={() => router.back()} />
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  if (loading && !recipe) {
+    return (
+      <View style={styles.container}>
+        <SafeAreaView style={styles.errorContainer}>
+          <Ionicons name="restaurant" size={80} color={colors.primary} />
+          <Text style={styles.errorTitle}>Loading recipe...</Text>
         </SafeAreaView>
       </View>
     );
@@ -133,7 +228,7 @@ export default function RecipeDetailScreen() {
             </Pressable>
             <Pressable onPress={handleToggleSave} style={styles.headerButton}>
               <Ionicons 
-                name={saved ? 'bookmark' : 'bookmark-outline'} 
+                name={saved ? 'heart' : 'heart-outline'} 
                 size={24} 
                 color={saved ? colors.primary : colors.text} 
               />

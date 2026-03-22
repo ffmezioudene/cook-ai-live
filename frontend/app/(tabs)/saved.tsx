@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Alert } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, Alert, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,7 +11,19 @@ import { colors, typography, spacing, borderRadius, shadows } from '@/constants/
 export default function SavedScreen() {
   const router = useRouter();
   const savedRecipes = useRecipeStore(state => state.savedRecipes);
+  const loadSavedRecipes = useRecipeStore(state => state.loadSavedRecipes);
   const unsaveRecipe = useRecipeStore(state => state.unsaveRecipe);
+  const [query, setQuery] = useState('');
+
+  React.useEffect(() => {
+    loadSavedRecipes();
+  }, [loadSavedRecipes]);
+
+  const filteredRecipes = useMemo(() => {
+    if (!query.trim()) return savedRecipes;
+    const q = query.trim().toLowerCase();
+    return savedRecipes.filter((item) => item.title.toLowerCase().includes(q));
+  }, [query, savedRecipes]);
 
   const handleRecipePress = (recipeId: string) => {
     router.push(`/recipe/${recipeId}`);
@@ -64,16 +76,16 @@ export default function SavedScreen() {
           <View style={styles.recipeInfo}>
             <View style={styles.infoItem}>
               <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-              <Text style={styles.infoText}>{item.cookingTime} min</Text>
+              <Text style={styles.infoText}>{item.payload?.cookingTime ?? '—'} min</Text>
             </View>
             <View style={styles.infoItem}>
               <Ionicons name="flame-outline" size={16} color={colors.textSecondary} />
-              <Text style={styles.infoText}>{item.difficulty}</Text>
+              <Text style={styles.infoText}>{item.payload?.difficulty ?? '—'}</Text>
             </View>
           </View>
           
           <View style={styles.cuisineTag}>
-            <Text style={styles.cuisineText}>{item.cuisine}</Text>
+            <Text style={styles.cuisineText}>{item.payload?.cuisine ?? 'Saved'}</Text>
           </View>
         </View>
 
@@ -82,7 +94,7 @@ export default function SavedScreen() {
           style={styles.bookmarkButton}
           hitSlop={8}
         >
-          <Ionicons name="bookmark" size={24} color={colors.primary} />
+          <Ionicons name="heart" size={24} color={colors.primary} />
         </Pressable>
       </Pressable>
     </Animated.View>
@@ -90,7 +102,7 @@ export default function SavedScreen() {
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="bookmark-outline" size={80} color={colors.textMuted} />
+      <Ionicons name="heart-outline" size={80} color={colors.textMuted} />
       <Text style={styles.emptyTitle}>No Saved Recipes</Text>
       <Text style={styles.emptyText}>
         Start scanning your fridge to discover{' \n'}and save delicious recipes
@@ -103,11 +115,22 @@ export default function SavedScreen() {
       <SafeAreaView style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Saved Recipes</Text>
-          <Text style={styles.count}>{savedRecipes.length} recipes</Text>
+          <Text style={styles.count}>{filteredRecipes.length} recipes</Text>
+        </View>
+
+        <View style={styles.searchWrap}>
+          <Ionicons name="search" size={18} color={colors.textMuted} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search saved recipes"
+            placeholderTextColor={colors.textMuted}
+            style={styles.searchInput}
+          />
         </View>
 
         <FlatList
-          data={savedRecipes}
+          data={filteredRecipes}
           renderItem={renderRecipeCard}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
@@ -140,6 +163,22 @@ const styles = StyleSheet.create({
   count: {
     fontSize: typography.base,
     color: colors.textSecondary,
+  },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.surface,
+  },
+  searchInput: {
+    flex: 1,
+    color: colors.text,
+    fontSize: typography.base,
   },
   list: {
     padding: spacing.xl,

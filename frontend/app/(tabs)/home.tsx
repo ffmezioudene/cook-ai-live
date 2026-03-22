@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,10 +19,20 @@ export default function HomeScreen() {
     router.push('/scan/camera');
   };
 
-  const handleViewRecipes = () => {
+  const handleViewIngredients = () => {
     if (scannedIngredients.length > 0) {
-      router.push('/scan/recipes');
+      router.push('/scan/ingredients');
+      return;
     }
+
+    Alert.alert(
+      'No ingredients yet',
+      'Start with a quick scan so we can identify ingredients for you.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Scan Now', onPress: () => router.push('/scan/camera') },
+      ]
+    );
   };
 
   return (
@@ -46,40 +56,42 @@ export default function HomeScreen() {
           entering={FadeInDown.delay(300).duration(600)}
           style={styles.mainSection}
         >
-          <Pressable
-            onPress={handleScanFridge}
-            style={({ pressed }) => [
-              styles.scanCard,
-              { opacity: pressed ? 0.9 : 1 },
-            ]}
-          >
-            <LinearGradient
-              colors={[colors.primary, colors.primaryDark]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.scanGradient}
+          <View style={styles.scanSection}>
+            <Pressable
+              onPress={handleScanFridge}
+              style={({ pressed }) => [
+                styles.scanCard,
+                { opacity: pressed ? 0.9 : 1 },
+              ]}
             >
-              <View style={styles.scanIcon}>
-                <Ionicons name="camera" size={64} color={colors.text} />
-              </View>
-              <Text style={styles.scanTitle}>Scan Your Fridge</Text>
-              <Text style={styles.scanDescription}>
-                Take 2 quick photos and discover recipes
-              </Text>
-            </LinearGradient>
-          </Pressable>
+              <LinearGradient
+                colors={[colors.primary, colors.primaryDark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.scanGradient}
+              >
+                <View style={styles.scanIcon}>
+                  <Ionicons name="camera" size={56} color={colors.text} />
+                </View>
+                <Text style={styles.scanTitle}>Scan Your Fridge</Text>
+                <Text style={styles.scanDescription}>
+                  Take 2 quick photos and discover recipes
+                </Text>
+              </LinearGradient>
+            </Pressable>
 
-          {scannedIngredients.length > 0 && (
-            <Animated.View entering={FadeInDown.delay(400).duration(600)}>
-              <Button
-                title={`View ${scannedIngredients.length} Ingredients`}
-                onPress={handleViewRecipes}
-                variant="secondary"
-                size="lg"
-                style={{ marginTop: spacing.lg }}
-              />
-            </Animated.View>
-          )}
+            {scannedIngredients.length > 0 && (
+              <Animated.View entering={FadeInDown.delay(400).duration(600)}>
+                <Button
+                  title={`View ${scannedIngredients.length} Ingredients`}
+                  onPress={handleViewIngredients}
+                  variant="secondary"
+                  size="lg"
+                  style={styles.secondaryAction}
+                />
+              </Animated.View>
+            )}
+          </View>
         </Animated.View>
 
         {/* Cuisine Tags */}
@@ -88,9 +100,12 @@ export default function HomeScreen() {
             entering={FadeInDown.delay(500).duration(600)}
             style={styles.cuisinesSection}
           >
-            <Text style={styles.cuisinesTitle}>Your Cuisines</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.cuisinesTitle}>Your Cuisines</Text>
+              <Text style={styles.cuisinesSubtitle}>Based on your preferences</Text>
+            </View>
             <View style={styles.cuisineTags}>
-              {selectedCuisines.slice(0, 5).map((cuisine) => (
+              {selectedCuisines.slice(0, 8).map((cuisine) => (
                 <View key={cuisine} style={styles.cuisineTag}>
                   <Text style={styles.cuisineTagText}>
                     {cuisine.charAt(0).toUpperCase() + cuisine.slice(1)}
@@ -112,10 +127,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xl,
   },
   header: {
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   greeting: {
     fontSize: typography['5xl'],
@@ -131,23 +148,27 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
+  scanSection: {
+    gap: spacing.md,
+  },
   scanCard: {
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
     ...shadows.lg,
   },
   scanGradient: {
-    padding: spacing.xxxl,
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.xxl,
     alignItems: 'center',
   },
   scanIcon: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
     borderRadius: borderRadius.full,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   scanTitle: {
     fontSize: typography['3xl'],
@@ -161,8 +182,17 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     textAlign: 'center',
   },
+  secondaryAction: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 340,
+  },
   cuisinesSection: {
     marginTop: spacing.xl,
+    paddingTop: spacing.md,
+  },
+  sectionHeader: {
+    marginBottom: spacing.md,
   },
   cuisinesTitle: {
     fontSize: typography.sm,
@@ -170,12 +200,17 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  cuisinesSubtitle: {
+    fontSize: typography.base,
+    color: colors.textSecondary,
   },
   cuisineTags: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
+    alignItems: 'center',
   },
   cuisineTag: {
     backgroundColor: colors.surface,
