@@ -46,8 +46,7 @@
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
-      ],
-      "expo-store-review"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
