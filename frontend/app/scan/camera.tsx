@@ -17,6 +17,7 @@ export default function CameraScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const API_BASE_URL = getApiBaseUrl();
+  console.log('[Camera] Using API URL:', API_BASE_URL);
 
   const parseJsonResponse = async (response: Response, context: string) => {
     const text = await response.text();
