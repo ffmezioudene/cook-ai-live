@@ -13,8 +13,8 @@ import { useSubscriptionStore } from '@/store/subscriptionStore';
 const YEARLY_PRODUCT_ID = 'pro_yearly_39_99_trial_3d';
 const MONTHLY_PRODUCT_ID = 'pro_monthly_9_99';
 
-const TERMS_URL = 'https://example.com/terms'; // TODO: replace with real terms link
-const PRIVACY_URL = 'https://example.com/privacy'; // TODO: replace with real privacy link
+const TERMS_URL = 'https://phantom-seaplane-531.notion.site/Cook-AI-Terms-of-Use-32c901b0ed5e8094a5afea15a82e8dff';
+const PRIVACY_URL = 'https://phantom-seaplane-531.notion.site/Cook-AI-Privacy-Policy-32c901b0ed5e8074a415d9882707b298';
 
 export default function PaywallScreen() {
   const router = useRouter();
