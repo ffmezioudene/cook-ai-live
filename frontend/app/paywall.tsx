@@ -19,7 +19,8 @@ const PRIVACY_URL = 'https://phantom-seaplane-531.notion.site/Cook-AI-Privacy-Po
 export default function PaywallScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ next?: string }>();
-  const nextRoute = params.next && params.next.length > 0 ? params.next : '/scan/recipes';
+  // Default to home after onboarding
+  const nextRoute = params.next && params.next.length > 0 ? params.next : '/(tabs)/home';
   const { refresh, isLoading: isRefreshing, isPro } = useSubscriptionStore();
   const [isInitializing, setIsInitializing] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
@@ -65,6 +66,11 @@ export default function PaywallScreen() {
       router.replace(nextRoute);
     }
   }, [isRefreshing, isPro, router, nextRoute]);
+
+  const handleSkip = () => {
+    // Allow users to skip paywall and continue with free trial
+    router.replace('/(tabs)/home');
+  };
 
   const handlePurchase = async (plan: 'yearly' | 'monthly') => {
     if (paywallDisabled) {
@@ -139,14 +145,19 @@ export default function PaywallScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.content}>
+        {/* Close/Skip Button */}
+        <Pressable style={styles.closeButton} onPress={handleSkip}>
+          <Ionicons name="close" size={28} color={colors.textSecondary} />
+        </Pressable>
+        
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Animated.View entering={FadeInDown.delay(100).duration(600)} style={styles.header}>
             <View style={styles.iconWrap}>
-              <Ionicons name="lock-closed" size={32} color={colors.primary} />
+              <Ionicons name="diamond" size={32} color={colors.primary} />
             </View>
-            <Text style={styles.title}>Your 3-day free access has ended</Text>
+            <Text style={styles.title}>Unlock Cook AI Pro</Text>
             <Text style={styles.subtitle}>
-              Keep cooking with full recipes, smart filters, and detailed steps anytime.
+              Get unlimited recipes, smart filters, and detailed cooking steps.
             </Text>
           </Animated.View>
 
@@ -227,8 +238,19 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  closeButton: {
+    position: 'absolute',
+    top: spacing.xl + 44, // Account for safe area
+    right: spacing.lg,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   scrollContent: {
     padding: spacing.xl,
+    paddingTop: spacing.xxxl,
     paddingBottom: spacing.xxxl,
   },
   header: {

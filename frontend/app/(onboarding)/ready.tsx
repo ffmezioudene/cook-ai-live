@@ -15,7 +15,8 @@ export default function ReadyScreen() {
 
   const handleGetStarted = () => {
     completeOnboarding();
-    router.replace('/(tabs)/home');
+    // Navigate to paywall after onboarding
+    router.replace('/paywall');
   };
 
   return (
