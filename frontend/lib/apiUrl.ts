@@ -1,12 +1,17 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+// Production backend URL - used when env var is not set
+const PRODUCTION_API_URL = 'https://cook-ai-live-production.up.railway.app/api';
+
 /**
  * Returns the API base URL (no trailing slash).
- * Always uses EXPO_PUBLIC_API_URL to ensure the phone can reach the backend.
+ * Priority:
+ * 1. EXPO_PUBLIC_API_URL from environment (for EAS builds)
+ * 2. Production URL fallback
  */
 export function getApiBaseUrl(): string {
-  // Always prefer the explicit EXPO_PUBLIC_API_URL for reliability
+  // Check environment variable first (set by EAS build)
   const envUrl = 
     process.env.EXPO_PUBLIC_API_URL ??
     (Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL as string | undefined) ??
@@ -14,26 +19,16 @@ export function getApiBaseUrl(): string {
     (Constants.manifest as any)?.extra?.EXPO_PUBLIC_API_URL;
 
   if (envUrl) {
+    console.log('[API] Using env URL:', envUrl);
     return String(envUrl).replace(/\/+$/, '');
   }
 
-  // Fallback for web preview or local development
-  if (Platform.OS === 'web') {
+  // For web preview, use relative path
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
     return '/api';
   }
 
-  // Last resort: try to construct from bundler host (may not work on real devices)
-  const devHost =
-    __DEV__ &&
-    (Constants.expoConfig?.hostUri ??
-      (Constants.manifest2 as any)?.hostUri ??
-      (Constants.manifest as any)?.debuggerHost);
-  
-  if (devHost) {
-    return `http://${String(devHost).split(':')[0]}:8001/api`;
-  }
-
-  throw new Error(
-    'Missing EXPO_PUBLIC_API_URL. Put it in frontend/.env and restart Expo with -c.'
-  );
+  // Production fallback - use Railway backend
+  console.log('[API] Using production URL:', PRODUCTION_API_URL);
+  return PRODUCTION_API_URL;
 }
