@@ -14,5 +14,6 @@ export default ({ config }) => ({
   extra: {
     ...config.extra,
     EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
+    EXPO_PUBLIC_REVENUECAT_API_KEY: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY,
   },
 });

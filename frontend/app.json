@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Cook AI",
-    "slug": "frontend",
+    "slug": "cook-ai",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ffmezioudene.cookai",
+      "bundleIdentifier": "com.cookai.fatah",
       "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "Scan your fridge to find recipes",
@@ -18,7 +18,7 @@
       }
     },
     "android": {
-      "package": "com.ffmezioudene.cookai",
+      "package": "com.cookai.fatah",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
