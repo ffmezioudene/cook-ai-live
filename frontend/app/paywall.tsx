@@ -5,6 +5,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import Button from '@/components/ui/Button';
 import { colors, typography, spacing, borderRadius, shadows } from '@/constants/theme';
 import { initPurchases, purchase, restore, getRevenueCatError } from '@/lib/revenuecat';
@@ -19,7 +20,6 @@ const PRIVACY_URL = 'https://phantom-seaplane-531.notion.site/Cook-AI-Privacy-Po
 export default function PaywallScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ next?: string }>();
-  // Default to home after onboarding
   const nextRoute = params.next && params.next.length > 0 ? params.next : '/(tabs)/home';
   const { refresh, isLoading: isRefreshing, isPro } = useSubscriptionStore();
   const [isInitializing, setIsInitializing] = useState(true);
@@ -28,6 +28,7 @@ export default function PaywallScreen() {
   const [monthlyPackage, setMonthlyPackage] = useState<PurchasesPackage | null>(null);
   const [purchaseLoading, setPurchaseLoading] = useState<'yearly' | 'monthly' | null>(null);
   const [restoreLoading, setRestoreLoading] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<'yearly' | 'monthly'>('yearly');
 
   const paywallDisabled = useMemo(
     () => Boolean(initError) || isInitializing,
@@ -68,19 +69,18 @@ export default function PaywallScreen() {
   }, [isRefreshing, isPro, router, nextRoute]);
 
   const handleSkip = () => {
-    // Allow users to skip paywall and continue with free trial
     router.replace('/(tabs)/home');
   };
 
-  const handlePurchase = async (plan: 'yearly' | 'monthly') => {
+  const handlePurchase = async () => {
     if (paywallDisabled) {
       Alert.alert('Purchases Unavailable', initError ?? 'Purchases are not available right now.');
       return;
     }
 
     try {
-      setPurchaseLoading(plan);
-      if (plan === 'yearly') {
+      setPurchaseLoading(selectedPlan);
+      if (selectedPlan === 'yearly') {
         await purchase(yearlyPackage ?? YEARLY_PRODUCT_ID);
       } else {
         await purchase(monthlyPackage ?? MONTHLY_PRODUCT_ID);
@@ -130,6 +130,8 @@ export default function PaywallScreen() {
     }
   };
 
+  const ctaButtonText = selectedPlan === 'yearly' ? 'Start 3 Days Free Trial' : 'Continue Monthly';
+
   if (isInitializing) {
     return (
       <View style={styles.container}>
@@ -147,18 +149,38 @@ export default function PaywallScreen() {
       <SafeAreaView style={styles.content}>
         {/* Close/Skip Button */}
         <Pressable style={styles.closeButton} onPress={handleSkip}>
-          <Ionicons name="close" size={28} color={colors.textSecondary} />
+          <View style={styles.closeButtonInner}>
+            <Ionicons name="close" size={22} color={colors.textSecondary} />
+          </View>
         </Pressable>
         
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Header */}
           <Animated.View entering={FadeInDown.delay(100).duration(600)} style={styles.header}>
             <View style={styles.iconWrap}>
-              <Ionicons name="diamond" size={32} color={colors.primary} />
+              <Ionicons name="diamond" size={36} color={colors.primary} />
             </View>
             <Text style={styles.title}>Unlock Cook AI Pro</Text>
             <Text style={styles.subtitle}>
-              Get unlimited recipes, smart filters, and detailed cooking steps.
+              Unlimited recipes, smart filters, and step-by-step cooking instructions.
             </Text>
+          </Animated.View>
+
+          {/* Features List */}
+          <Animated.View entering={FadeInDown.delay(150).duration(600)} style={styles.featuresContainer}>
+            {[
+              { icon: 'infinite', text: 'Unlimited recipe scans' },
+              { icon: 'restaurant', text: 'Full recipe instructions' },
+              { icon: 'filter', text: 'Advanced cuisine filters' },
+              { icon: 'bookmark', text: 'Save unlimited recipes' },
+            ].map((feature, index) => (
+              <View key={index} style={styles.featureRow}>
+                <View style={styles.featureIcon}>
+                  <Ionicons name={feature.icon as any} size={18} color={colors.primary} />
+                </View>
+                <Text style={styles.featureText}>{feature.text}</Text>
+              </View>
+            ))}
           </Animated.View>
 
           {initError && (
@@ -168,38 +190,99 @@ export default function PaywallScreen() {
             </View>
           )}
 
-          <Animated.View entering={FadeInDown.delay(200).duration(600)} style={styles.planCardPrimary}>
-            <View style={styles.planHeader}>
-              <Text style={styles.planTitle}>Yearly</Text>
-              <View style={styles.recommendedBadge}>
-                <Text style={styles.recommendedText}>Best Value</Text>
+          {/* Plan Cards */}
+          <Animated.View entering={FadeInDown.delay(200).duration(600)} style={styles.plansContainer}>
+            {/* Yearly Plan */}
+            <Pressable
+              style={[
+                styles.planCard,
+                selectedPlan === 'yearly' && styles.planCardSelected,
+              ]}
+              onPress={() => setSelectedPlan('yearly')}
+            >
+              {/* Best Value Badge */}
+              <View style={styles.bestValueBadge}>
+                <LinearGradient
+                  colors={[colors.primary, colors.accent]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.bestValueGradient}
+                >
+                  <Text style={styles.bestValueText}>BEST VALUE</Text>
+                </LinearGradient>
               </View>
-            </View>
-            <Text style={styles.planPrice}>$39.99/year</Text>
-            <Button
-              title="Continue Yearly"
-              onPress={() => handlePurchase('yearly')}
-              size="lg"
-              loading={purchaseLoading === 'yearly'}
-              disabled={paywallDisabled || Boolean(purchaseLoading)}
-              style={styles.planButton}
-            />
+
+              <View style={styles.planContent}>
+                <View style={styles.planLeft}>
+                  <View style={[
+                    styles.radioOuter,
+                    selectedPlan === 'yearly' && styles.radioOuterSelected,
+                  ]}>
+                    {selectedPlan === 'yearly' && <View style={styles.radioInner} />}
+                  </View>
+                  <View style={styles.planInfo}>
+                    <Text style={styles.planTitle}>Yearly</Text>
+                    <View style={styles.trialBadge}>
+                      <Ionicons name="gift" size={12} color={colors.success} />
+                      <Text style={styles.trialBadgeText}>3 Days Free Trial</Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.planRight}>
+                  <Text style={styles.planPrice}>$39.99</Text>
+                  <Text style={styles.planPeriod}>/year</Text>
+                  <Text style={styles.planSavings}>Save 67%</Text>
+                </View>
+              </View>
+            </Pressable>
+
+            {/* Monthly Plan */}
+            <Pressable
+              style={[
+                styles.planCard,
+                selectedPlan === 'monthly' && styles.planCardSelected,
+              ]}
+              onPress={() => setSelectedPlan('monthly')}
+            >
+              <View style={styles.planContent}>
+                <View style={styles.planLeft}>
+                  <View style={[
+                    styles.radioOuter,
+                    selectedPlan === 'monthly' && styles.radioOuterSelected,
+                  ]}>
+                    {selectedPlan === 'monthly' && <View style={styles.radioInner} />}
+                  </View>
+                  <View style={styles.planInfo}>
+                    <Text style={styles.planTitle}>Monthly</Text>
+                    <Text style={styles.planSubtitle}>Billed monthly</Text>
+                  </View>
+                </View>
+                <View style={styles.planRight}>
+                  <Text style={styles.planPrice}>$9.99</Text>
+                  <Text style={styles.planPeriod}>/month</Text>
+                </View>
+              </View>
+            </Pressable>
           </Animated.View>
 
-          <Animated.View entering={FadeInDown.delay(300).duration(600)} style={styles.planCard}>
-            <Text style={styles.planTitle}>Monthly</Text>
-            <Text style={styles.planPrice}>$9.99/month</Text>
+          {/* CTA Button */}
+          <Animated.View entering={FadeInDown.delay(300).duration(600)} style={styles.ctaContainer}>
             <Button
-              title="Continue Monthly"
-              onPress={() => handlePurchase('monthly')}
-              variant="secondary"
+              title={ctaButtonText}
+              onPress={handlePurchase}
               size="lg"
-              loading={purchaseLoading === 'monthly'}
+              loading={Boolean(purchaseLoading)}
               disabled={paywallDisabled || Boolean(purchaseLoading)}
-              style={styles.planButton}
+              style={styles.ctaButton}
             />
+            {selectedPlan === 'yearly' && (
+              <Text style={styles.trialNote}>
+                Free for 3 days, then $39.99/year. Cancel anytime.
+              </Text>
+            )}
           </Animated.View>
 
+          {/* Restore */}
           <Animated.View entering={FadeInDown.delay(400).duration(600)} style={styles.restoreSection}>
             <Pressable onPress={handleRestore} disabled={paywallDisabled || restoreLoading}>
               <Text style={styles.restoreText}>
@@ -208,19 +291,20 @@ export default function PaywallScreen() {
             </Pressable>
           </Animated.View>
 
+          {/* Fine Print */}
           <Animated.View entering={FadeInDown.delay(500).duration(600)} style={styles.finePrint}>
             <Text style={styles.finePrintText}>
-              Payment will be charged to your Apple ID account at confirmation of purchase. Subscription
-              automatically renews unless cancelled at least 24 hours before the end of the current
-              period. Manage and cancel in App Store settings.
+              Payment will be charged to your Apple ID account at confirmation of purchase. 
+              Subscription automatically renews unless cancelled at least 24 hours before 
+              the end of the current period. Manage and cancel in App Store settings.
             </Text>
             <View style={styles.linkRow}>
               <Pressable onPress={() => handleOpenLink(TERMS_URL)}>
-                <Text style={styles.linkText}>Terms</Text>
+                <Text style={styles.linkText}>Terms of Use</Text>
               </Pressable>
               <Text style={styles.linkDivider}>•</Text>
               <Pressable onPress={() => handleOpenLink(PRIVACY_URL)}>
-                <Text style={styles.linkText}>Privacy</Text>
+                <Text style={styles.linkText}>Privacy Policy</Text>
               </Pressable>
             </View>
           </Animated.View>
@@ -240,41 +324,72 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: 'absolute',
-    top: spacing.xl + 44, // Account for safe area
+    top: spacing.lg + 44,
     right: spacing.lg,
     zIndex: 10,
-    width: 44,
-    height: 44,
+  },
+  closeButtonInner: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadows.sm,
   },
   scrollContent: {
     padding: spacing.xl,
-    paddingTop: spacing.xxxl,
+    paddingTop: spacing.xxxl + spacing.md,
     paddingBottom: spacing.xxxl,
   },
   header: {
+    alignItems: 'center',
     marginBottom: spacing.xl,
   },
   iconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.primary + '20',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
   },
   title: {
     fontSize: typography['3xl'],
     fontWeight: typography.bold,
     color: colors.text,
     marginBottom: spacing.sm,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: typography.base,
     color: colors.textSecondary,
     lineHeight: typography.lineHeight.relaxed * typography.base,
+    textAlign: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  featuresContainer: {
+    marginBottom: spacing.xl,
+    gap: spacing.md,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  featureIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featureText: {
+    fontSize: typography.base,
+    color: colors.text,
+    fontWeight: typography.medium,
   },
   errorCard: {
     flexDirection: 'row',
@@ -283,61 +398,131 @@ const styles = StyleSheet.create({
     backgroundColor: colors.warning + '20',
     padding: spacing.md,
     borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
   },
   errorText: {
     flex: 1,
     fontSize: typography.sm,
     color: colors.text,
   },
-  planCardPrimary: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    ...shadows.md,
-    borderWidth: 1,
-    borderColor: colors.primary + '40',
+  plansContainer: {
+    gap: spacing.md,
+    marginBottom: spacing.xl,
   },
   planCard: {
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.xl,
     padding: spacing.lg,
-    marginBottom: spacing.lg,
-    ...shadows.md,
+    borderWidth: 2,
+    borderColor: colors.border,
+    position: 'relative',
+    overflow: 'visible',
   },
-  planHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.sm,
+  planCardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '08',
   },
-  planTitle: {
-    fontSize: typography.xl,
-    fontWeight: typography.semibold,
-    color: colors.text,
+  bestValueBadge: {
+    position: 'absolute',
+    top: -12,
+    left: spacing.lg,
+    zIndex: 1,
   },
-  recommendedBadge: {
-    backgroundColor: colors.primary + '20',
-    paddingHorizontal: spacing.sm,
+  bestValueGradient: {
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
   },
-  recommendedText: {
+  bestValueText: {
     fontSize: typography.xs,
-    fontWeight: typography.semibold,
-    color: colors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    fontWeight: typography.bold,
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
   },
-  planPrice: {
+  planContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  planLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  radioOuter: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioOuterSelected: {
+    borderColor: colors.primary,
+  },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
+  },
+  planInfo: {
+    gap: spacing.xs,
+  },
+  planTitle: {
     fontSize: typography.lg,
     fontWeight: typography.semibold,
     color: colors.text,
-    marginBottom: spacing.md,
   },
-  planButton: {
-    marginTop: spacing.sm,
+  planSubtitle: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+  },
+  trialBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.success + '15',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    alignSelf: 'flex-start',
+  },
+  trialBadgeText: {
+    fontSize: typography.xs,
+    fontWeight: typography.semibold,
+    color: colors.success,
+  },
+  planRight: {
+    alignItems: 'flex-end',
+  },
+  planPrice: {
+    fontSize: typography['2xl'],
+    fontWeight: typography.bold,
+    color: colors.text,
+  },
+  planPeriod: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    marginTop: -2,
+  },
+  planSavings: {
+    fontSize: typography.xs,
+    fontWeight: typography.semibold,
+    color: colors.success,
+    marginTop: spacing.xs,
+  },
+  ctaContainer: {
+    marginBottom: spacing.lg,
+  },
+  ctaButton: {
+    marginBottom: spacing.sm,
+  },
+  trialNote: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   restoreSection: {
     alignItems: 'center',
@@ -349,18 +534,19 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   finePrint: {
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   finePrintText: {
     fontSize: typography.xs,
     color: colors.textMuted,
     lineHeight: typography.lineHeight.relaxed * typography.xs,
+    textAlign: 'center',
   },
   linkRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   linkText: {
     fontSize: typography.sm,
