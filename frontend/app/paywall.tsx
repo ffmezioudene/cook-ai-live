@@ -3,12 +3,12 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Linking } from 'r
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Purchases, { PurchasesPackage } from 'react-native-purchases';
+import Purchases, { PurchasesPackage, PurchasesError, PURCHASES_ERROR_CODE } from 'react-native-purchases';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Button from '@/components/ui/Button';
 import { colors, typography, spacing, borderRadius, shadows } from '@/constants/theme';
-import { initPurchases, purchase, restore, getRevenueCatError } from '@/lib/revenuecat';
+import { initPurchases, purchase, restore, getRevenueCatError, isConfigured } from '@/lib/revenuecat';
 import { useSubscriptionStore } from '@/store/subscriptionStore';
 
 const YEARLY_PRODUCT_ID = 'pro_yearly_39_99_trial_3d';
@@ -16,6 +16,8 @@ const MONTHLY_PRODUCT_ID = 'pro_monthly_9_99';
 
 const TERMS_URL = 'https://phantom-seaplane-531.notion.site/Cook-AI-Terms-of-Use-32c901b0ed5e8094a5afea15a82e8dff';
 const PRIVACY_URL = 'https://phantom-seaplane-531.notion.site/Cook-AI-Privacy-Policy-32c901b0ed5e8074a415d9882707b298';
+
+const LOG_PREFIX = '[Paywall]';
 
 export default function PaywallScreen() {
   const router = useRouter();
@@ -29,33 +31,103 @@ export default function PaywallScreen() {
   const [purchaseLoading, setPurchaseLoading] = useState<'yearly' | 'monthly' | null>(null);
   const [restoreLoading, setRestoreLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<'yearly' | 'monthly'>('yearly');
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
   const paywallDisabled = useMemo(
     () => Boolean(initError) || isInitializing,
     [initError, isInitializing]
   );
 
+  // Check if the selected package is available
+  const selectedPackage = selectedPlan === 'yearly' ? yearlyPackage : monthlyPackage;
+  const canPurchase = !paywallDisabled && selectedPackage !== null;
+
   useEffect(() => {
     const loadOfferings = async () => {
+      console.log(`${LOG_PREFIX} ========== LOADING OFFERINGS ==========`);
       setIsInitializing(true);
+      setDebugInfo('Initializing RevenueCat...');
+      
+      // Step 1: Initialize RevenueCat
       const initResult = await initPurchases();
+      console.log(`${LOG_PREFIX} Init result:`, initResult);
+      
       if (!initResult.configured) {
-        setInitError(initResult.error ?? getRevenueCatError() ?? 'RevenueCat not configured.');
+        const error = initResult.error ?? getRevenueCatError() ?? 'RevenueCat not configured.';
+        console.error(`${LOG_PREFIX} ❌ Init failed:`, error);
+        setInitError(error);
+        setDebugInfo(`Init failed: ${error}`);
         setIsInitializing(false);
         return;
       }
 
+      setDebugInfo('Fetching offerings...');
+
+      // Step 2: Load offerings
       try {
+        console.log(`${LOG_PREFIX} Calling Purchases.getOfferings()...`);
         const offerings = await Purchases.getOfferings();
-        const available = offerings.current?.availablePackages ?? [];
+        
+        console.log(`${LOG_PREFIX} Offerings received:`, {
+          currentOfferingId: offerings.current?.identifier,
+          allOfferingsCount: Object.keys(offerings.all).length,
+        });
+
+        // Check if current offering exists
+        if (!offerings.current) {
+          console.error(`${LOG_PREFIX} ❌ No current offering!`);
+          console.log(`${LOG_PREFIX} All offerings:`, Object.keys(offerings.all));
+          setInitError('No offerings available. Check RevenueCat dashboard configuration.');
+          setDebugInfo('Error: No current offering found');
+          setIsInitializing(false);
+          return;
+        }
+
+        const available = offerings.current.availablePackages ?? [];
+        console.log(`${LOG_PREFIX} Available packages (${available.length}):`);
+        available.forEach((pkg, i) => {
+          console.log(`${LOG_PREFIX}   [${i}] ${pkg.identifier} - ${pkg.product.identifier} - ${pkg.product.priceString}`);
+        });
+
+        // Check if packages are empty
+        if (available.length === 0) {
+          console.error(`${LOG_PREFIX} ❌ No packages in current offering!`);
+          setInitError('No subscription packages available. Check App Store Connect and RevenueCat.');
+          setDebugInfo('Error: availablePackages is empty');
+          setIsInitializing(false);
+          return;
+        }
+
+        // Find our packages
         const yearly = available.find((pkg) => pkg.product.identifier === YEARLY_PRODUCT_ID) ?? null;
         const monthly = available.find((pkg) => pkg.product.identifier === MONTHLY_PRODUCT_ID) ?? null;
+
+        console.log(`${LOG_PREFIX} Yearly package found:`, yearly ? yearly.product.identifier : 'NOT FOUND');
+        console.log(`${LOG_PREFIX} Monthly package found:`, monthly ? monthly.product.identifier : 'NOT FOUND');
+
+        if (!yearly && !monthly) {
+          console.error(`${LOG_PREFIX} ❌ Neither yearly nor monthly package found!`);
+          console.log(`${LOG_PREFIX} Looking for: ${YEARLY_PRODUCT_ID}, ${MONTHLY_PRODUCT_ID}`);
+          console.log(`${LOG_PREFIX} Available identifiers:`, available.map(p => p.product.identifier));
+          setInitError(`Products not found. Expected: ${YEARLY_PRODUCT_ID} or ${MONTHLY_PRODUCT_ID}`);
+          setDebugInfo(`Products not found in offerings`);
+        }
+
         setYearlyPackage(yearly);
         setMonthlyPackage(monthly);
+        setDebugInfo(
+          `Loaded: Yearly=${yearly ? 'YES' : 'NO'}, Monthly=${monthly ? 'YES' : 'NO'}`
+        );
+        
+        console.log(`${LOG_PREFIX} ✅ Offerings loaded successfully`);
       } catch (error) {
-        console.warn('Unable to load offerings.', error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error(`${LOG_PREFIX} ❌ Failed to load offerings:`, errorMsg, error);
+        setInitError(`Failed to load offerings: ${errorMsg}`);
+        setDebugInfo(`Offerings error: ${errorMsg}`);
       } finally {
         setIsInitializing(false);
+        console.log(`${LOG_PREFIX} ========== LOADING COMPLETE ==========`);
       }
     };
 
@@ -73,33 +145,57 @@ export default function PaywallScreen() {
   };
 
   const handlePurchase = async () => {
+    console.log(`${LOG_PREFIX} ========== PURCHASE TAPPED ==========`);
+    console.log(`${LOG_PREFIX} Selected plan:`, selectedPlan);
+    console.log(`${LOG_PREFIX} Selected package:`, selectedPackage?.product?.identifier);
+    console.log(`${LOG_PREFIX} Paywall disabled:`, paywallDisabled);
+    console.log(`${LOG_PREFIX} Can purchase:`, canPurchase);
+    
     if (paywallDisabled) {
       Alert.alert('Purchases Unavailable', initError ?? 'Purchases are not available right now.');
       return;
     }
 
+    // CRITICAL: Ensure we have a valid package object
+    if (!selectedPackage) {
+      const errorMsg = `${selectedPlan} package not loaded. Try closing and reopening the app.`;
+      console.error(`${LOG_PREFIX} ❌ No package available for:`, selectedPlan);
+      Alert.alert('Package Not Available', errorMsg);
+      return;
+    }
+
     try {
       setPurchaseLoading(selectedPlan);
-      if (selectedPlan === 'yearly') {
-        await purchase(yearlyPackage ?? YEARLY_PRODUCT_ID);
-      } else {
-        await purchase(monthlyPackage ?? MONTHLY_PRODUCT_ID);
-      }
+      console.log(`${LOG_PREFIX} Starting purchase for package:`, selectedPackage.product.identifier);
+      
+      // Call purchase with the actual package object (NOT a string!)
+      await purchase(selectedPackage);
 
+      console.log(`${LOG_PREFIX} ✅ Purchase call completed, refreshing subscription status...`);
       const pro = await refresh();
+      
       if (pro) {
+        console.log(`${LOG_PREFIX} ✅ Pro status confirmed, navigating away`);
         router.replace(nextRoute);
       } else {
+        console.log(`${LOG_PREFIX} ⚠️ Purchase completed but pro not active yet`);
         Alert.alert('Purchase Incomplete', 'We could not unlock Pro yet. Try Restore Purchases.');
       }
     } catch (error) {
-      Alert.alert('Purchase Failed', 'Please try again or restore purchases.');
+      console.error(`${LOG_PREFIX} ❌ Purchase error:`, error);
+      
+      // Handle specific error types
+      const alertInfo = getPurchaseAlertInfo(error);
+      Alert.alert(alertInfo.title, alertInfo.message);
     } finally {
       setPurchaseLoading(null);
+      console.log(`${LOG_PREFIX} ========== PURCHASE END ==========`);
     }
   };
 
   const handleRestore = async () => {
+    console.log(`${LOG_PREFIX} ========== RESTORE TAPPED ==========`);
+    
     if (paywallDisabled) {
       Alert.alert('Purchases Unavailable', initError ?? 'Purchases are not available right now.');
       return;
@@ -110,12 +206,17 @@ export default function PaywallScreen() {
       await restore();
       const pro = await refresh();
       if (!pro) {
-        Alert.alert('No Active Subscription', 'We could not find an active subscription.');
+        Alert.alert('No Active Subscription', 'We could not find an active subscription for this Apple ID.');
+      } else {
+        console.log(`${LOG_PREFIX} ✅ Restore successful, pro status:`, pro);
+        router.replace(nextRoute);
       }
     } catch (error) {
-      Alert.alert('Restore Failed', 'Please try again.');
+      console.error(`${LOG_PREFIX} ❌ Restore error:`, error);
+      Alert.alert('Restore Failed', 'Please try again. Make sure you are signed in with the correct Apple ID.');
     } finally {
       setRestoreLoading(false);
+      console.log(`${LOG_PREFIX} ========== RESTORE END ==========`);
     }
   };
 
@@ -139,6 +240,7 @@ export default function PaywallScreen() {
           <Ionicons name="sparkles" size={64} color={colors.primary} />
           <Text style={styles.loadingTitle}>Preparing your access...</Text>
           <Text style={styles.loadingSubtitle}>Fetching subscription options</Text>
+          {__DEV__ && <Text style={styles.debugText}>{debugInfo}</Text>}
         </SafeAreaView>
       </View>
     );
@@ -183,10 +285,18 @@ export default function PaywallScreen() {
             ))}
           </Animated.View>
 
+          {/* Error Display */}
           {initError && (
             <View style={styles.errorCard}>
               <Ionicons name="alert-circle" size={20} color={colors.warning} />
               <Text style={styles.errorText}>{initError}</Text>
+            </View>
+          )}
+
+          {/* Debug Info (dev only) */}
+          {__DEV__ && debugInfo && (
+            <View style={styles.debugCard}>
+              <Text style={styles.debugText}>{debugInfo}</Text>
             </View>
           )}
 
@@ -197,8 +307,10 @@ export default function PaywallScreen() {
               style={[
                 styles.planCard,
                 selectedPlan === 'yearly' && styles.planCardSelected,
+                !yearlyPackage && styles.planCardDisabled,
               ]}
-              onPress={() => setSelectedPlan('yearly')}
+              onPress={() => yearlyPackage && setSelectedPlan('yearly')}
+              disabled={!yearlyPackage}
             >
               {/* Best Value Badge */}
               <View style={styles.bestValueBadge}>
@@ -229,11 +341,16 @@ export default function PaywallScreen() {
                   </View>
                 </View>
                 <View style={styles.planRight}>
-                  <Text style={styles.planPrice}>$39.99</Text>
+                  <Text style={styles.planPrice}>
+                    {yearlyPackage?.product?.priceString ?? '$39.99'}
+                  </Text>
                   <Text style={styles.planPeriod}>/year</Text>
                   <Text style={styles.planSavings}>Save 67%</Text>
                 </View>
               </View>
+              {!yearlyPackage && (
+                <Text style={styles.unavailableText}>Not available</Text>
+              )}
             </Pressable>
 
             {/* Monthly Plan */}
@@ -241,8 +358,10 @@ export default function PaywallScreen() {
               style={[
                 styles.planCard,
                 selectedPlan === 'monthly' && styles.planCardSelected,
+                !monthlyPackage && styles.planCardDisabled,
               ]}
-              onPress={() => setSelectedPlan('monthly')}
+              onPress={() => monthlyPackage && setSelectedPlan('monthly')}
+              disabled={!monthlyPackage}
             >
               <View style={styles.planContent}>
                 <View style={styles.planLeft}>
@@ -258,10 +377,15 @@ export default function PaywallScreen() {
                   </View>
                 </View>
                 <View style={styles.planRight}>
-                  <Text style={styles.planPrice}>$9.99</Text>
+                  <Text style={styles.planPrice}>
+                    {monthlyPackage?.product?.priceString ?? '$9.99'}
+                  </Text>
                   <Text style={styles.planPeriod}>/month</Text>
                 </View>
               </View>
+              {!monthlyPackage && (
+                <Text style={styles.unavailableText}>Not available</Text>
+              )}
             </Pressable>
           </Animated.View>
 
@@ -272,7 +396,7 @@ export default function PaywallScreen() {
               onPress={handlePurchase}
               size="lg"
               loading={Boolean(purchaseLoading)}
-              disabled={paywallDisabled || Boolean(purchaseLoading)}
+              disabled={!canPurchase || Boolean(purchaseLoading)}
               style={styles.ctaButton}
             />
             {selectedPlan === 'yearly' && (
@@ -312,6 +436,51 @@ export default function PaywallScreen() {
       </SafeAreaView>
     </View>
   );
+}
+
+// Helper to get user-friendly alert info based on error type
+function getPurchaseAlertInfo(error: unknown): { title: string; message: string } {
+  if (!error || typeof error !== 'object') {
+    return { title: 'Purchase Failed', message: 'An unexpected error occurred. Please try again.' };
+  }
+
+  const e = error as PurchasesError;
+  
+  // Check for user cancellation
+  if ('userCancelled' in e && e.userCancelled) {
+    return { title: 'Purchase Cancelled', message: 'You cancelled the purchase.' };
+  }
+
+  // Check for specific error codes
+  if ('code' in e) {
+    switch (e.code) {
+      case PURCHASES_ERROR_CODE.PURCHASE_CANCELLED_ERROR:
+        return { title: 'Purchase Cancelled', message: 'You cancelled the purchase.' };
+      case PURCHASES_ERROR_CODE.STORE_PROBLEM_ERROR:
+        return { title: 'App Store Error', message: 'There was a problem with the App Store. Please try again later.' };
+      case PURCHASES_ERROR_CODE.PURCHASE_NOT_ALLOWED_ERROR:
+        return { title: 'Purchase Not Allowed', message: 'Purchases are not allowed on this device. Check your device settings.' };
+      case PURCHASES_ERROR_CODE.PRODUCT_NOT_AVAILABLE_FOR_PURCHASE_ERROR:
+        return { title: 'Product Not Available', message: 'This product is not available for purchase right now.' };
+      case PURCHASES_ERROR_CODE.PRODUCT_ALREADY_PURCHASED_ERROR:
+        return { title: 'Already Purchased', message: 'You already own this subscription. Try Restore Purchases.' };
+      case PURCHASES_ERROR_CODE.NETWORK_ERROR:
+        return { title: 'Network Error', message: 'Please check your internet connection and try again.' };
+      case PURCHASES_ERROR_CODE.INVALID_CREDENTIALS_ERROR:
+        return { title: 'Configuration Error', message: 'There is a problem with the app configuration. Please contact support.' };
+      case PURCHASES_ERROR_CODE.PAYMENT_PENDING_ERROR:
+        return { title: 'Payment Pending', message: 'Your payment is being processed. It may take a few minutes.' };
+      default:
+        break;
+    }
+  }
+
+  // Fallback with error message if available
+  const message = 'message' in e && typeof e.message === 'string' 
+    ? e.message 
+    : 'Please try again or contact support.';
+  
+  return { title: 'Purchase Failed', message };
 }
 
 const styles = StyleSheet.create({
@@ -405,6 +574,17 @@ const styles = StyleSheet.create({
     fontSize: typography.sm,
     color: colors.text,
   },
+  debugCard: {
+    backgroundColor: colors.surface,
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+    marginBottom: spacing.md,
+  },
+  debugText: {
+    fontSize: typography.xs,
+    color: colors.textMuted,
+    fontFamily: 'monospace',
+  },
   plansContainer: {
     gap: spacing.md,
     marginBottom: spacing.xl,
@@ -421,6 +601,9 @@ const styles = StyleSheet.create({
   planCardSelected: {
     borderColor: colors.primary,
     backgroundColor: colors.primary + '08',
+  },
+  planCardDisabled: {
+    opacity: 0.5,
   },
   bestValueBadge: {
     position: 'absolute',
@@ -512,6 +695,12 @@ const styles = StyleSheet.create({
     fontWeight: typography.semibold,
     color: colors.success,
     marginTop: spacing.xs,
+  },
+  unavailableText: {
+    fontSize: typography.xs,
+    color: colors.warning,
+    marginTop: spacing.sm,
+    textAlign: 'center',
   },
   ctaContainer: {
     marginBottom: spacing.lg,
