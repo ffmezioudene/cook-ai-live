@@ -58,7 +58,7 @@ export default function CameraScreen() {
             We need access to your camera{' \n'}to scan your fridge
           </Text>
           <Button
-            title="Grant Permission"
+            title="Continue"
             onPress={requestPermission}
             size="lg"
             style={{ marginTop: spacing.xl }}
