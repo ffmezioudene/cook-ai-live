@@ -106,33 +106,11 @@ export default function RecipesScreen() {
   const [cuisineFilter, setCuisineFilter] = useState<string>('all');
 
   useEffect(() => {
-    let isMounted = true;
-    const checkAccess = async () => {
-      const freeActive = await isFreeAccessActive();
-      if (isMounted) {
-        setFreeAccessActive(freeActive);
-      }
-
-      if (!freeActive) {
-        const pro = await refreshSubscription();
-        if (!pro) {
-          router.replace({
-            pathname: '/paywall',
-            params: { next: '/scan/recipes' },
-          });
-        }
-      }
-
-      if (isMounted) {
-        setCheckingAccess(false);
-      }
-    };
-
-    checkAccess();
-    return () => {
-      isMounted = false;
-    };
-  }, [refreshSubscription, router]);
+    // V1 LAUNCH: Skip all premium checks, allow free access
+    // TODO: Re-enable premium gating for V2
+    setCheckingAccess(false);
+    setFreeAccessActive(true); // Grant free access to everyone for V1
+  }, []);
 
   useEffect(() => {
     if (params.meal && ['breakfast', 'main course', 'dessert', 'snack'].includes(params.meal)) {
@@ -416,25 +394,11 @@ export default function RecipesScreen() {
     </Animated.View>
   );
 
-  if (checkingAccess) {
-    return (
-      <View style={styles.container}>
-        <SafeAreaView style={styles.loadingContainer}>
-          <Animated.View entering={FadeInDown.duration(600)}>
-            <Ionicons name="lock-closed" size={72} color={colors.primary} />
-          </Animated.View>
-          <Animated.View entering={FadeInDown.delay(200).duration(600)}>
-            <Text style={styles.loadingTitle}>Checking access...</Text>
-            <Text style={styles.loadingText}>Verifying your subscription</Text>
-          </Animated.View>
-        </SafeAreaView>
-      </View>
-    );
-  }
+  // V1 LAUNCH: Skip access check screen entirely
+  // if (checkingAccess) { ... } - removed for V1
 
-  if (!freeAccessActive && !isPro) {
-    return null;
-  }
+  // V1 LAUNCH: Always allow access
+  // if (!freeAccessActive && !isPro) { return null; } - removed for V1
 
   if (loading) {
     return (
